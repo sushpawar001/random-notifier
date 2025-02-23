@@ -2,6 +2,9 @@ MAX_MINUTES = 60;
 MIN_MINUTES = 35;
 LAST_NOTIFICATION = null;
 
+let notificationState = 'running';
+let pauseTimeout = null;
+
 function timeNow() {
     return new Date().toLocaleTimeString([], {
         hour: "2-digit",
@@ -44,6 +47,9 @@ function callTTS(message) {
 }
 
 function showNotification(notificationType) {
+    if (notificationState !== 'running') {
+        return;
+    }
     chrome.storage.sync.get({
         startTime: '08:00',
         endTime: '22:00'
@@ -117,4 +123,57 @@ chrome.runtime.onInstalled.addListener(() => {
 
     scheduleNextNotification("stretching", 30);
     scheduleNextNotification("water", 1);
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    switch(message.action) {
+        case 'startNotifications':
+            notificationState = 'running';
+            if (pauseTimeout) {
+                clearTimeout(pauseTimeout);
+                pauseTimeout = null;
+            }
+            break;
+            
+        case 'stopNotifications':
+            notificationState = 'stopped';
+            if (pauseTimeout) {
+                clearTimeout(pauseTimeout);
+                pauseTimeout = null;
+            }
+            break;
+            
+        case 'pauseNotifications':
+            notificationState = 'paused';
+            if (pauseTimeout) {
+                clearTimeout(pauseTimeout);
+            }
+            pauseTimeout = setTimeout(() => {
+                notificationState = 'running';
+                chrome.storage.local.set({ notificationState: 'running' });
+            }, message.duration * 60 * 1000);
+            break;
+    }
+});
+
+// When extension starts, check the stored state
+chrome.storage.local.get(['notificationState', 'pauseEndTime'], function(result) {
+    if (result.notificationState) {
+        notificationState = result.notificationState;
+        
+        // If paused, calculate remaining time
+        if (notificationState === 'paused' && result.pauseEndTime) {
+            const remainingTime = result.pauseEndTime - Date.now();
+            if (remainingTime > 0) {
+                pauseTimeout = setTimeout(() => {
+                    notificationState = 'running';
+                    chrome.storage.local.set({ notificationState: 'running' });
+                }, remainingTime);
+            } else {
+                // If pause time has already expired
+                notificationState = 'running';
+                chrome.storage.local.set({ notificationState: 'running' });
+            }
+        }
+    }
 });
