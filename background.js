@@ -1,8 +1,9 @@
 MAX_MINUTES = 60;
 MIN_MINUTES = 35;
-START_TIME = "08:00";
-END_TIME = "22:00";
 LAST_NOTIFICATION = null;
+
+let notificationState = 'running';
+let pauseTimeout = null;
 
 function timeNow() {
     return new Date().toLocaleTimeString([], {
@@ -46,47 +47,54 @@ function callTTS(message) {
 }
 
 function showNotification(notificationType) {
-    if (isTimeBetween(timeNow(), START_TIME, END_TIME)) {
-        // check if latest notification is more than 10 minutes ago
-        const is_allowed =
-            LAST_NOTIFICATION === null ||
-            Date.now() - LAST_NOTIFICATION < 10 * 60 * 1000;
-
-        if (is_allowed) {
-            switch (notificationType) {
-                case "stretching":
-                    chrome.notifications.create({
-                        type: "basic",
-                        iconUrl: "stretching.png",
-                        title: "Time to stretch!",
-                        message:
-                            "Get up and stretch your legs! You've been sitting for too long.",
-                        priority: 2,
-                    });
-                    break;
-                case "water":
-                    chrome.notifications.create({
-                        type: "basic",
-                        iconUrl: "water.png",
-                        title: "Stay hydrated!",
-                        message:
-                            "It's time to drink some water! It's good for your health and productivity.",
-                        priority: 2,
-                    });
-                    break;
-            }
-
-            if (notificationType === "stretching") {
-                callTTS("Time to stretch");
-            } else if (notificationType === "water") {
-                callTTS("Stay hydrated");
-            }
-
-            LAST_NOTIFICATION = Date.now();
-        }
+    if (notificationState !== 'running') {
+        return;
     }
+    chrome.storage.sync.get({
+        startTime: '08:00',
+        endTime: '22:00'
+    }, (items) => {
+        if (isTimeBetween(timeNow(), items.startTime, items.endTime)) {
+            // check if latest notification is more than 10 minutes ago
+            const is_allowed =
+                LAST_NOTIFICATION === null ||
+                Date.now() - LAST_NOTIFICATION > 10 * 60 * 1000;
 
-    scheduleNextNotification(notificationType);
+            if (is_allowed) {
+                switch (notificationType) {
+                    case "stretching":
+                        chrome.notifications.create({
+                            type: "basic",
+                            iconUrl: "stretching.png",
+                            title: "Time to stretch!",
+                            message:
+                                "Get up and stretch your legs! You've been sitting for too long.",
+                            priority: 2,
+                        });
+                        break;
+                    case "water":
+                        chrome.notifications.create({
+                            type: "basic",
+                            iconUrl: "water.png",
+                            title: "Stay hydrated!",
+                            message:
+                                "It's time to drink some water! It's good for your health and productivity.",
+                            priority: 2,
+                        });
+                        break;
+                }
+
+                if (notificationType === "stretching") {
+                    callTTS("Time to stretch");
+                } else if (notificationType === "water") {
+                    callTTS("Stay hydrated");
+                }
+
+                LAST_NOTIFICATION = Date.now();
+            }
+        }
+        scheduleNextNotification(notificationType);
+    });
 }
 
 // Function to schedule next notification
@@ -115,4 +123,57 @@ chrome.runtime.onInstalled.addListener(() => {
 
     scheduleNextNotification("stretching", 30);
     scheduleNextNotification("water", 1);
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    switch(message.action) {
+        case 'startNotifications':
+            notificationState = 'running';
+            if (pauseTimeout) {
+                clearTimeout(pauseTimeout);
+                pauseTimeout = null;
+            }
+            break;
+            
+        case 'stopNotifications':
+            notificationState = 'stopped';
+            if (pauseTimeout) {
+                clearTimeout(pauseTimeout);
+                pauseTimeout = null;
+            }
+            break;
+            
+        case 'pauseNotifications':
+            notificationState = 'paused';
+            if (pauseTimeout) {
+                clearTimeout(pauseTimeout);
+            }
+            pauseTimeout = setTimeout(() => {
+                notificationState = 'running';
+                chrome.storage.local.set({ notificationState: 'running' });
+            }, message.duration * 60 * 1000);
+            break;
+    }
+});
+
+// When extension starts, check the stored state
+chrome.storage.local.get(['notificationState', 'pauseEndTime'], function(result) {
+    if (result.notificationState) {
+        notificationState = result.notificationState;
+        
+        // If paused, calculate remaining time
+        if (notificationState === 'paused' && result.pauseEndTime) {
+            const remainingTime = result.pauseEndTime - Date.now();
+            if (remainingTime > 0) {
+                pauseTimeout = setTimeout(() => {
+                    notificationState = 'running';
+                    chrome.storage.local.set({ notificationState: 'running' });
+                }, remainingTime);
+            } else {
+                // If pause time has already expired
+                notificationState = 'running';
+                chrome.storage.local.set({ notificationState: 'running' });
+            }
+        }
+    }
 });
