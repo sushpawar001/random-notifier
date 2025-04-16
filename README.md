@@ -7,27 +7,62 @@ Random Notifier is a Chrome extension that sends notifications at random interva
 - Sends notifications to remind you to stretch and drink water.
 - Uses the Chrome TTS API to provide audible reminders.
 - Configurable notification intervals.
+- Built with Plasmo framework for modern extension development.
 
 ## Installation
 
+### Development Setup
+
 1. Clone the repository or download the ZIP file.
-2. Open Chrome and go to `chrome://extensions/`.
-3. Enable "Developer mode" by toggling the switch in the top right corner.
-4. Click on "Load unpacked" and select the directory containing the extension files.
+2. Install dependencies:
+   ```
+   npm install
+   # or
+   pnpm install
+   ```
+3. Run the development server:
+   ```
+   npm run dev
+   # or
+   pnpm dev
+   ```
+4. Load the extension:
+   - Open Chrome and go to `chrome://extensions/`
+   - Enable "Developer mode" by toggling the switch in the top right corner.
+   - Click on "Load unpacked" and select the `.plasmo/chrome-mv3-dev` directory.
+
+### Production Build
+
+1. Build the extension:
+   ```
+   npm run build
+   # or
+   pnpm build
+   ```
+2. Package the extension:
+   ```
+   npm run package
+   # or
+   pnpm package
+   ```
+3. The packaged extension will be available in the `build/` directory:
+   - `build/chrome-mv3-prod.zip`: Production build for Chrome
+4. To install in Chrome:
+   - Go to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Either drag and drop the ZIP file onto the page or click "Load unpacked" and select the unzipped `build/chrome-mv3-prod/` directory
 
 ## Usage
 
 - The extension will automatically start sending notifications after it is installed.
+- Configure notification settings in the popup interface.
 
-## Files
+## Project Structure
 
-- `background.js`: Contains the main logic for the extension.
-- `icon.png`: The icon for the extension.
-- `manifest.json`: The manifest file that defines the extension's metadata, permissions, and background script.
-- `stretching.mp3`: Audio file for the stretching reminder.
-- `stretching.png`: Icon for the stretching notification.
-- `water.mp3`: Audio file for the water reminder.
-- `water.png`: Icon for the water notification.
+- `src/background/`: Contains the background service workers.
+- `src/popup/`: Contains the popup UI components and logic.
+- `src/lib/`: Utility functions and shared code.
+- `src/types/`: TypeScript type definitions.
 
 ## Permissions
 
@@ -37,6 +72,7 @@ The extension requires the following permissions:
 - `alarms`: To schedule notifications.
 - `tts`: To use the Text-to-Speech API.
 - `ttsEngine`: To use the Text-to-Speech engine.
+- `storage`: To store user preferences.
 
 ## License
 
